@@ -8,13 +8,12 @@
   the potentiometer, and the A0 analog pin to the 3rd pin on the potentiometer.
 */
 void setup() {
-  Serial.begin(9600)
+  Serial.begin(115200);
 }
 
 void loop() {
   int sensorValue = analogRead(A0);
   float voltage = sensorValue * (5.0 / 1023.0); // ADC EQ is V = Analog * (max Voltage/ bit resolution of ADC)
-  Serial.print("Current Voltage: ");
-  Serial.print(voltage);
-  Serial.println("V");
+  Serial.println(sensorValue);
+  delay(500);
 }
