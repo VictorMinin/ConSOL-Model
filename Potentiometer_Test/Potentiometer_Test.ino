@@ -15,5 +15,5 @@ void loop() {
   int sensorValue = analogRead(A0);
   float voltage = sensorValue * (5.0 / 1023.0); // ADC EQ is V = Analog * (max Voltage/ bit resolution of ADC)
   Serial.println(sensorValue);
-  delay(500);
+  delay(50);
 }

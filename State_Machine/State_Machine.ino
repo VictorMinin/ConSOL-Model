@@ -25,6 +25,84 @@ Actuator actuator[6] = {
   {2, 3, 4},       // Actuator 5 tilt
   {5, 6, 7}        // Actuator 6 tilt
 };
+// ===== Sync Actuator Control During Stepper Motion =====
+// Globals
+volatile bool g_motionCtrlEnabled = false;
+volatile bool g_motionArmed = false;
+volatile long g_motionMaxSteps = 0;
+volatile long g_motionStartAtStep = 0;
+volatile int  g_motionStartPercent = 0;
+volatile int  g_targetA0 = -1;   // -1 means unused
+volatile int  g_targetA1 = -1;
+volatile int  g_motionHyst = 10;
+volatile int  g_motionPwm  = 120;
+
+// Forward declarations
+inline void _actuatorTowardTarget(int actIdx, uint8_t potPin, int target, int hyst, int pwm);
+inline void processDuringMotion();
+void enableActuatorMotionSync(int targetA0, int targetA1, int hyst = 10, int pwm = 120);
+void enableActuatorMotionSyncDelayed(int targetA0, int targetA1, int startPercent, int hyst = 10, int pwm = 120);
+void disableActuatorMotionSync();
+
+// Implementations
+inline void _actuatorTowardTarget(int actIdx, uint8_t potPin, int target, int hyst, int pwm) {
+  if (!g_motionCtrlEnabled || target < 0) return;
+  analogRead(potPin); // dummy read for ADC settle
+  int v = analogRead(potPin);
+  if (v > target + hyst) {            // above: retract (LPWM)
+    analogWrite(actuator[actIdx].RPWM, 0);
+    analogWrite(actuator[actIdx].LPWM, pwm);
+    digitalWrite(actuator[actIdx].EN, HIGH);
+  } else if (v < target - hyst) {     // below: extend (RPWM)
+    analogWrite(actuator[actIdx].RPWM, pwm);
+    analogWrite(actuator[actIdx].LPWM, 0);
+    digitalWrite(actuator[actIdx].EN, HIGH);
+  } else {                            // in band: stop
+    analogWrite(actuator[actIdx].RPWM, 0);
+    analogWrite(actuator[actIdx].LPWM, 0);
+    digitalWrite(actuator[actIdx].EN, LOW);
+  }
+
+}
+
+inline void processDuringMotion() {
+  if (!g_motionCtrlEnabled || !g_motionArmed) return;
+  if (g_targetA0 >= 0) { _actuatorTowardTarget(4, A0, g_targetA0, g_motionHyst, g_motionPwm); }
+  if (g_targetA1 >= 0) { _actuatorTowardTarget(5, A1, g_targetA1, g_motionHyst, g_motionPwm); }
+}
+
+void enableActuatorMotionSync(int targetA0, int targetA1, int hyst, int pwm) {
+  g_targetA0 = targetA0;
+  g_targetA1 = targetA1;
+  g_motionHyst = hyst;
+  g_motionPwm = pwm;
+  g_motionStartPercent = 0;
+  g_motionStartAtStep = 0;
+  g_motionArmed = true; // start immediately
+  g_motionCtrlEnabled = true;
+}
+
+void enableActuatorMotionSyncDelayed(int targetA0, int targetA1, int startPercent, int hyst, int pwm) {
+  if (startPercent < 0) startPercent = 0;
+  if (startPercent > 100) startPercent = 100;
+  g_targetA0 = targetA0;
+  g_targetA1 = targetA1;
+  g_motionHyst = hyst;
+  g_motionPwm = pwm;
+  g_motionStartPercent = startPercent;
+  g_motionStartAtStep = 0;   // computed in moveBothMotors
+  g_motionArmed = (startPercent == 0);
+  g_motionCtrlEnabled = true;
+}
+
+void disableActuatorMotionSync() {
+  g_motionCtrlEnabled = false;
+  g_motionArmed = false;
+  // Stop both actuators (tilt pair)
+  analogWrite(actuator[4].RPWM, 0); analogWrite(actuator[4].LPWM, 0); digitalWrite(actuator[4].EN, LOW);
+  analogWrite(actuator[5].RPWM, 0); analogWrite(actuator[5].LPWM, 0); digitalWrite(actuator[5].EN, LOW);
+}
+
 
 // Define IR receiver pin
 const int receiverPin = 12; 
@@ -74,39 +152,91 @@ void stopActuator(int id) {
 
 // Select actuator 9 as the actuator in the back.
 void tilt_front_panel_down() {
+  analogRead(A0); // dummy read
+
   while (analogRead(A0) < 900) {
-  analogWrite(actuator[4].RPWM, 0);
-  analogWrite(actuator[4].LPWM, 100);
+  analogWrite(actuator[4].RPWM, 100);
+  analogWrite(actuator[4].LPWM, 0);
   digitalWrite(actuator[4].EN, HIGH);
   }
+
   stopActuator(4);
+  delay(1000);
 }
 
 void tilt_back_panel_down() {
+  analogRead(A1); // dummy read
+
   while (analogRead(A1) < 900) {
-  analogWrite(actuator[5].RPWM, 0);
-  analogWrite(actuator[5].LPWM, 100);
+  analogWrite(actuator[5].RPWM, 100);
+  analogWrite(actuator[5].LPWM, 0);
   digitalWrite(actuator[5].EN, HIGH);
   }
   stopActuator(5);
 }
 
 void tilt_front_panel_up() {
-  while (analogRead(A0) > 400) {
+  analogRead(A0); // dummy read
+
+  while (analogRead(A0) > 180) {
+  analogWrite(actuator[4].RPWM, 0);
+  analogWrite(actuator[4].LPWM, 100);
+  digitalWrite(actuator[4].EN, HIGH);
+  }
+
+  stopActuator(4);
+}
+
+void tilt_back_panel_up() {
+  analogRead(A1); // dummy read
+
+  while (analogRead(A1) > 180) {
+  analogWrite(actuator[5].RPWM, 0);
+  analogWrite(actuator[5].LPWM, 100);
+  digitalWrite(actuator[5].EN, HIGH);
+  }
+
+  stopActuator(5);
+}
+
+void starting_front_actuator() { // Set actuator in desired position
+  analogRead(A0); // dummy read
+ //Serial.println(analogRead(A0));
+
+  while (analogRead(A0) < 480) {
   analogWrite(actuator[4].RPWM, 100);
   analogWrite(actuator[4].LPWM, 0);
   digitalWrite(actuator[4].EN, HIGH);
   }
   stopActuator(4);
+
+  while (analogRead(A0) > 480) {
+  analogWrite(actuator[4].RPWM, 0);
+  analogWrite(actuator[4].LPWM, 100);
+  digitalWrite(actuator[4].EN, HIGH);
+  }
+  stopActuator(4);
+  //Serial.println(analogRead(A0));
 }
 
-void tilt_back_panel_up() {
-  while (analogRead(A1) > 400) {
+void starting_back_actuator() {
+  analogRead(A1); // dummy read
+  //Serial.println(analogRead(A1));
+
+  while (analogRead(A1) < 170) {
   analogWrite(actuator[5].RPWM, 100);
   analogWrite(actuator[5].LPWM, 0);
   digitalWrite(actuator[5].EN, HIGH);
   }
   stopActuator(5);
+
+  while (analogRead(A1) > 170) {
+  analogWrite(actuator[5].RPWM, 0);
+  analogWrite(actuator[5].LPWM, 100);
+  digitalWrite(actuator[5].EN, HIGH);
+  }
+  stopActuator(5);
+  //Serial.println(analogRead(A1));
 }
 
 void moveBothMotors(float revs, bool dir1, bool dir2) {
@@ -118,6 +248,11 @@ void moveBothMotors(float revs, bool dir1, bool dir2) {
   long steps_motor2 = (long)(MOTOR2_STEPS_PER_REV * MICROSTEPS * revs);
 
   long maxSteps = (steps_motor1 > steps_motor2) ? steps_motor1 : steps_motor2;
+  // Make total available to the motion-sync hook and compute delayed-start step
+  g_motionMaxSteps = maxSteps;
+  if (g_motionCtrlEnabled && !g_motionArmed) {
+    g_motionStartAtStep = (long)((g_motionStartPercent / 100.0) * (double)maxSteps);
+  }
   long minSteps = (steps_motor1 < steps_motor2) ? steps_motor1 : steps_motor2;
 
   // Print for debugging
@@ -133,6 +268,8 @@ void moveBothMotors(float revs, bool dir1, bool dir2) {
   long error2 = 0;
 
   for (long i = 0; i < maxSteps; i++) {
+    if (g_motionCtrlEnabled && !g_motionArmed && i >= g_motionStartAtStep) { g_motionArmed = true; }
+    if (g_motionCtrlEnabled && g_motionArmed) { processDuringMotion(); }
     bool step1 = false;
     bool step2 = false;
 
@@ -192,8 +329,8 @@ enum PanelsState {
 PanelsState panelsState = PANELS_RETRACTED;
 
 void setup() {
-  
-for (int i = 0; i < 5; i++) {
+
+for (int i = 0; i < 6; i++) {
   pinMode(actuator[i].RPWM, OUTPUT);
   pinMode(actuator[i].LPWM, OUTPUT);
   pinMode(actuator[i].EN, OUTPUT);
@@ -232,38 +369,9 @@ for (int i = 0; i < 5; i++) {
   // Start the IR receiver
   IrReceiver.begin(receiverPin);
 
-  // Set actuator in desired position
-  while (analogRead(A0) > 850) {
-  analogWrite(actuator[4].RPWM, 100);
-  analogWrite(actuator[4].LPWM, 0);
-  digitalWrite(actuator[4].EN, HIGH);
-  }
-  stopActuator(4);
-
-  while (analogRead(A0) < 850) {
-  analogWrite(actuator[4].RPWM, 0);
-  analogWrite(actuator[4].LPWM, 100);
-  digitalWrite(actuator[4].EN, HIGH);
-  }
-  stopActuator(4);
-
-  // Set actuator in desired position
-  while (analogRead(A1) > 850) {
-  analogWrite(actuator[5].RPWM, 100);
-  analogWrite(actuator[5].LPWM, 0);
-  digitalWrite(actuator[5].EN, HIGH);
-  }
-  stopActuator(5);
-
-  while (analogRead(A1) < 850) {
-  analogWrite(actuator[5].RPWM, 0);
-  analogWrite(actuator[5].LPWM, 100);
-  digitalWrite(actuator[5].EN, HIGH);
-  }
-  stopActuator(5);
+  starting_front_actuator();
+  starting_back_actuator();
 }
-
-
 
 void loop() {
   switch(currentState) {
@@ -324,54 +432,105 @@ void loop() {
 
     case EXTENDING_PANELS:
 
-      while (analogRead(A0) > 500) {
-      analogWrite(actuator[4].RPWM, 50);
+      analogRead(A0);
+      
+      while (analogRead(A0) < 480) {
+      analogWrite(actuator[4].RPWM, 100);
       analogWrite(actuator[4].LPWM, 0);
       digitalWrite(actuator[4].EN, HIGH);
       }
       stopActuator(4);
+      delay(500);
 
-      while (analogRead(A0) < 500) {
+      while (analogRead(A0) > 480) {
       analogWrite(actuator[4].RPWM, 0);
-      analogWrite(actuator[4].LPWM, 50);
+      analogWrite(actuator[4].LPWM, 100);
       digitalWrite(actuator[4].EN, HIGH);
       }
       stopActuator(4);
+      delay(500);
 
-      extendPanels();
+      delay(500);
+      analogRead(A1);
 
+      while (analogRead(A1) < 150) {
+      analogWrite(actuator[5].RPWM, 100);
+      analogWrite(actuator[5].LPWM, 0);
+      digitalWrite(actuator[5].EN, HIGH);
+      }
+      stopActuator(5);
+      delay(500);
+
+      while (analogRead(A1) > 150) {
+      analogWrite(actuator[5].RPWM, 0);
+      analogWrite(actuator[5].LPWM, 100);
+      digitalWrite(actuator[5].EN, HIGH);
+      }
+      stopActuator(5);
+      delay(500);
+
+      moveBothMotors(4, HIGH, LOW);
+      delay(2000);
+      //extendPanels();
       currentState = WAITING_FOR_COMMAND;
       break;
     
     case TILTING_PANELS_DOWN:
       tilt_front_panel_down();
-      //tilt_back_panel_down();
+      delay(500);
+      tilt_back_panel_up();
+      delay(500);
       currentState = WAITING_FOR_COMMAND;
       break;
 
     case TILTING_PANELS_UP:
       tilt_front_panel_up();
-      //tilt_back_panel_up();
+      delay(500);
+      tilt_back_panel_down();
+      delay(500);
       currentState = WAITING_FOR_COMMAND;
       break;
 
     case RETRACTING_PANELS:
-      while (analogRead(A0) > 500) {
-      analogWrite(actuator[4].RPWM, 50);
+      
+      analogRead(A0);
+      while (analogRead(A0) < 600) {
+      analogWrite(actuator[4].RPWM, 100);
       analogWrite(actuator[4].LPWM, 0);
       digitalWrite(actuator[4].EN, HIGH);
       }
       stopActuator(4);
+      delay(500);
 
-      while (analogRead(A0) < 500) {
+      while (analogRead(A0) > 600) {
       analogWrite(actuator[4].RPWM, 0);
-      analogWrite(actuator[4].LPWM, 50);
+      analogWrite(actuator[4].LPWM, 100);
       digitalWrite(actuator[4].EN, HIGH);
       }
       stopActuator(4);
+      delay(500);
+
+      delay(500);
+      analogRead(A1);
+
+      while (analogRead(A1) < 200) {
+      analogWrite(actuator[5].RPWM, 100);
+      analogWrite(actuator[5].LPWM, 0);
+      digitalWrite(actuator[5].EN, HIGH);
+      }
+      stopActuator(5);
+      delay(500);
+
+      while (analogRead(A1) > 200) {
+      analogWrite(actuator[5].RPWM, 0);
+      analogWrite(actuator[5].LPWM, 100);
+      digitalWrite(actuator[5].EN, HIGH);
+      }
+      stopActuator(5);
+      delay(500);
+      
 
       retractPanels();
-
       currentState = WAITING_FOR_COMMAND;
       break;
   } 
@@ -379,15 +538,15 @@ void loop() {
 
 void extendPanels() {
   Serial.println("Extending Panels 3 steps");
-
-  moveBothMotors(3, HIGH, LOW);
+  enableActuatorMotionSyncDelayed(600, 330, 80, 10, 100); // start at 80% progress
+  moveBothMotors(4, HIGH, LOW);
   delay(2000);
 }
 
 void retractPanels() {
   Serial.println("Retracting Panels 3 steps");
-
-  moveBothMotors(3, LOW, HIGH);
+  enableActuatorMotionSyncDelayed(600, 0, 50, 10, 100); // start at 50% progress
+  moveBothMotors(4, LOW, HIGH);
   delay(2000);
 }
 
