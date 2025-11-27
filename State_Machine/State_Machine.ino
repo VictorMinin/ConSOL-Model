@@ -1,4 +1,5 @@
 #include <IRremote.h>
+
 #include <TMCStepper.h>
 #include <SoftwareSerial.h>
 
@@ -115,7 +116,7 @@ decode_results ir_results;  // Custom Decoder object from elegoo library
 // Define motor control pins for the Stepper Motor 
 #define EN_PIN_1           11   // Enable
 #define DIR_PIN_1          10   // Direction
-#define STEP_PIN_1         9   // Step
+#define STEP_PIN_1         9    // Step
 
 #define EN_PIN_2           44   // Enable
 #define DIR_PIN_2          43   // Direction
@@ -154,8 +155,8 @@ void stopActuator(int id) {
 void tilt_front_panel_down() {
   analogRead(A0); // dummy read
 
-  while (analogRead(A0) < 900) {
-  analogWrite(actuator[4].RPWM, 100);
+  while (analogRead(A0) > 500) {
+  analogWrite(actuator[4].RPWM, 75);
   analogWrite(actuator[4].LPWM, 0);
   digitalWrite(actuator[4].EN, HIGH);
   }
@@ -167,8 +168,8 @@ void tilt_front_panel_down() {
 void tilt_back_panel_down() {
   analogRead(A1); // dummy read
 
-  while (analogRead(A1) < 900) {
-  analogWrite(actuator[5].RPWM, 100);
+  while (analogRead(A1) < 500) {
+  analogWrite(actuator[5].RPWM, 75);
   analogWrite(actuator[5].LPWM, 0);
   digitalWrite(actuator[5].EN, HIGH);
   }
@@ -178,10 +179,12 @@ void tilt_back_panel_down() {
 void tilt_front_panel_up() {
   analogRead(A0); // dummy read
 
-  while (analogRead(A0) > 180) {
+  while (analogRead(A0) < 1020) {
   analogWrite(actuator[4].RPWM, 0);
-  analogWrite(actuator[4].LPWM, 100);
+  analogWrite(actuator[4].LPWM, 75);
   digitalWrite(actuator[4].EN, HIGH);
+  Serial.println(analogRead(A0));
+
   }
 
   stopActuator(4);
@@ -192,7 +195,7 @@ void tilt_back_panel_up() {
 
   while (analogRead(A1) > 180) {
   analogWrite(actuator[5].RPWM, 0);
-  analogWrite(actuator[5].LPWM, 100);
+  analogWrite(actuator[5].LPWM, 75);
   digitalWrite(actuator[5].EN, HIGH);
   }
 
@@ -201,38 +204,39 @@ void tilt_back_panel_up() {
 
 void starting_front_actuator() { // Set actuator in desired position
   analogRead(A0); // dummy read
- //Serial.println(analogRead(A0));
+  Serial.println(analogRead(A0));
 
-  while (analogRead(A0) < 480) {
-  analogWrite(actuator[4].RPWM, 100);
+  while (analogRead(A0) < 700) {
+  analogWrite(actuator[4].RPWM, 0);
+  analogWrite(actuator[4].LPWM, 75);
+  digitalWrite(actuator[4].EN, HIGH);
+  Serial.println(analogRead(A0));
+  }
+  stopActuator(4);
+
+  while (analogRead(A0) > 700) {
+  analogWrite(actuator[4].RPWM, 75);
   analogWrite(actuator[4].LPWM, 0);
   digitalWrite(actuator[4].EN, HIGH);
   }
   stopActuator(4);
-
-  while (analogRead(A0) > 480) {
-  analogWrite(actuator[4].RPWM, 0);
-  analogWrite(actuator[4].LPWM, 100);
-  digitalWrite(actuator[4].EN, HIGH);
-  }
-  stopActuator(4);
-  //Serial.println(analogRead(A0));
+  Serial.println(analogRead(A0));
 }
 
 void starting_back_actuator() {
   analogRead(A1); // dummy read
   //Serial.println(analogRead(A1));
 
-  while (analogRead(A1) < 170) {
-  analogWrite(actuator[5].RPWM, 100);
+  while (analogRead(A1) < 50) {
+  analogWrite(actuator[5].RPWM, 75);
   analogWrite(actuator[5].LPWM, 0);
   digitalWrite(actuator[5].EN, HIGH);
   }
   stopActuator(5);
 
-  while (analogRead(A1) > 170) {
+  while (analogRead(A1) > 50) {
   analogWrite(actuator[5].RPWM, 0);
-  analogWrite(actuator[5].LPWM, 100);
+  analogWrite(actuator[5].LPWM, 75);
   digitalWrite(actuator[5].EN, HIGH);
   }
   stopActuator(5);
@@ -434,17 +438,17 @@ void loop() {
 
       analogRead(A0);
       
-      while (analogRead(A0) < 480) {
-      analogWrite(actuator[4].RPWM, 100);
+      while (analogRead(A0) > 700) {
+      analogWrite(actuator[4].RPWM, 75);
       analogWrite(actuator[4].LPWM, 0);
       digitalWrite(actuator[4].EN, HIGH);
       }
       stopActuator(4);
       delay(500);
 
-      while (analogRead(A0) > 480) {
+      while (analogRead(A0) < 700) {
       analogWrite(actuator[4].RPWM, 0);
-      analogWrite(actuator[4].LPWM, 100);
+      analogWrite(actuator[4].LPWM, 75);
       digitalWrite(actuator[4].EN, HIGH);
       }
       stopActuator(4);
@@ -453,23 +457,23 @@ void loop() {
       delay(500);
       analogRead(A1);
 
-      while (analogRead(A1) < 150) {
-      analogWrite(actuator[5].RPWM, 100);
+      while (analogRead(A1) < 120) {
+      analogWrite(actuator[5].RPWM, 75);
       analogWrite(actuator[5].LPWM, 0);
       digitalWrite(actuator[5].EN, HIGH);
       }
       stopActuator(5);
       delay(500);
 
-      while (analogRead(A1) > 150) {
+      while (analogRead(A1) > 120) {
       analogWrite(actuator[5].RPWM, 0);
-      analogWrite(actuator[5].LPWM, 100);
+      analogWrite(actuator[5].LPWM, 75);
       digitalWrite(actuator[5].EN, HIGH);
       }
       stopActuator(5);
       delay(500);
 
-      moveBothMotors(4, HIGH, LOW);
+      moveBothMotors(2, HIGH, LOW);
       delay(2000);
       //extendPanels();
       currentState = WAITING_FOR_COMMAND;
@@ -494,17 +498,17 @@ void loop() {
     case RETRACTING_PANELS:
       
       analogRead(A0);
-      while (analogRead(A0) < 600) {
-      analogWrite(actuator[4].RPWM, 100);
+      while (analogRead(A0) > 500) {
+      analogWrite(actuator[4].RPWM, 75);
       analogWrite(actuator[4].LPWM, 0);
       digitalWrite(actuator[4].EN, HIGH);
       }
       stopActuator(4);
       delay(500);
 
-      while (analogRead(A0) > 600) {
+      while (analogRead(A0) < 500) {
       analogWrite(actuator[4].RPWM, 0);
-      analogWrite(actuator[4].LPWM, 100);
+      analogWrite(actuator[4].LPWM, 75);
       digitalWrite(actuator[4].EN, HIGH);
       }
       stopActuator(4);
@@ -514,7 +518,7 @@ void loop() {
       analogRead(A1);
 
       while (analogRead(A1) < 200) {
-      analogWrite(actuator[5].RPWM, 100);
+      analogWrite(actuator[5].RPWM, 75);
       analogWrite(actuator[5].LPWM, 0);
       digitalWrite(actuator[5].EN, HIGH);
       }
@@ -523,7 +527,7 @@ void loop() {
 
       while (analogRead(A1) > 200) {
       analogWrite(actuator[5].RPWM, 0);
-      analogWrite(actuator[5].LPWM, 100);
+      analogWrite(actuator[5].LPWM, 75);
       digitalWrite(actuator[5].EN, HIGH);
       }
       stopActuator(5);
@@ -539,14 +543,14 @@ void loop() {
 void extendPanels() {
   Serial.println("Extending Panels 3 steps");
   enableActuatorMotionSyncDelayed(600, 330, 80, 10, 100); // start at 80% progress
-  moveBothMotors(4, HIGH, LOW);
+  moveBothMotors(3, HIGH, LOW);
   delay(2000);
 }
 
 void retractPanels() {
   Serial.println("Retracting Panels 3 steps");
   enableActuatorMotionSyncDelayed(600, 0, 50, 10, 100); // start at 50% progress
-  moveBothMotors(4, LOW, HIGH);
+  moveBothMotors(3, LOW, HIGH);
   delay(2000);
 }
 
