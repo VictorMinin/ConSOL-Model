@@ -20,11 +20,11 @@ Actuator actuator[6] = {
   {22, 23, 24},    // Actuator set 1 lift
   {25, 26, 27},    // Actuator set 2 jack extension
 
-  {28, 29, 30},    // Actuator 3 lift
-  {31, 32, 33},    // Actuator 4 jack extension
+  {28, 29, 30},    // Actuator set 3 lift
+  {31, 32, 33},    // Actuator set 4 jack extension
 
-  {2, 3, 4},       // Actuator 5 tilt
-  {5, 6, 7}        // Actuator 6 tilt
+  {2, 3, 4},       // Actuator 9 tilt
+  {5, 6, 7}        // Actuator 10 tilt
 };
 // ===== Sync Actuator Control During Stepper Motion =====
 // Globals
@@ -355,6 +355,12 @@ for (int i = 0; i < 6; i++) {
   Serial1.begin(115200);    // For driver 1
   Serial2.begin(115200);    // For driver 2
   delay(500);
+
+  ///////////////////// NEW - 12/2/2025 - Remove if Causing issues (Lines 359-363)
+  // Set RMS current for both drivers 
+  driver1.rms_current(1000);  // Set to 1.0 A for driver 1
+  driver2.rms_current(1000);  // Set to 1.0 A for driver 2
+  ////////////////////////////////////////////////////////////////
 
   driver1.begin();               // SPI: Init
   driver1.toff(5);               // Enables driver in software
