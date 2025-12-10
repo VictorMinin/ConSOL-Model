@@ -358,8 +358,8 @@ for (int i = 0; i < 6; i++) {
 
   ///////////////////// NEW - 12/2/2025 - Remove if Causing issues (Lines 359-363)
   // Set RMS current for both drivers 
-  driver1.rms_current(1000);  // Set to 1.0 A for driver 1
-  driver2.rms_current(1000);  // Set to 1.0 A for driver 2
+  // driver1.rms_current(1000);  // Set to 1.0 A for driver 1
+  // driver2.rms_current(1000);  // Set to 1.0 A for driver 2
   ////////////////////////////////////////////////////////////////
 
   driver1.begin();               // SPI: Init
